@@ -1,0 +1,74 @@
+pipeline {
+    agent any
+
+    triggers {
+        githubPush()
+    }
+
+    environment {
+        AWS_DEFAULT_REGION = 'ap-south-1'
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Terraform Init') {
+            steps {
+                sh '''
+                    terraform init -input=false
+                '''
+            }
+        }
+
+        stage('Terraform Validate') {
+            steps {
+                sh '''
+                    terraform validate
+                '''
+            }
+        }
+
+        stage('Terraform Plan') {
+            steps {
+                sh '''
+                    terraform plan \
+                        -input=false \
+                        -out=tfplan
+                '''
+            }
+        }
+
+        stage('Approval') {
+            steps {
+                input message: 'Apply Terraform changes to AWS?', \
+                      ok: 'Apply'
+            }
+        }
+
+        stage('Terraform Apply') {
+            steps {
+                sh '''
+                    terraform apply \
+                        -input=false \
+                        -auto-approve \
+                        tfplan
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Terraform deployment completed successfully.'
+        }
+
+        failure {
+            echo 'Terraform pipeline failed.'
+        }
+    }
+}
